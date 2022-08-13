@@ -84,7 +84,7 @@ local function get_max_len(bufnr, parsed_data)
   return max_len
 end
 
-local render_hints = function(bufnr, parsed, namespace)
+local render_hints = function(bufnr, parsed, namespace, range)
   local max_len
   if config.options.inlay_hints.max_len_align then
     max_len = get_max_len(bufnr, parsed)
@@ -121,10 +121,18 @@ local render_hints = function(bufnr, parsed, namespace)
     end
 
     if virt_text ~= "" then
-      vim.api.nvim_buf_set_extmark(bufnr, namespace, line, 0, {
-        virt_text = { { virt_text, config.options.inlay_hints.highlight } },
-        hl_mode = "combine",
-      })
+      local line_start, line_end = range.start[1], range._end[1]
+      -- server may send additional hints
+      if line < line_start or line > line_end then
+        vim.api.nvim_buf_clear_namespace(bufnr, namespace, line, line + 1)
+      end
+
+      pcall(function()
+        vim.api.nvim_buf_set_extmark(bufnr, namespace, line, 0, {
+          virt_text = { { virt_text, config.options.inlay_hints.highlight } },
+          hl_mode = "combine",
+        })
+      end)
     end
   end
 end
