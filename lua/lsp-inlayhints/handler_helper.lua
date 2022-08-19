@@ -57,10 +57,10 @@ local fill_labels = function(line_hints)
     -- https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#inlayHintLabelPart
     if type(hint.label) == "table" then
       for _, label_part in ipairs(hint.label) do
-        table.insert(tbl, label_part.value)
+        tbl[#tbl+1] = label_part.value
       end
     else
-      table.insert(tbl, hint.label)
+      tbl[#tbl+1] = hint.label
     end
   end
 

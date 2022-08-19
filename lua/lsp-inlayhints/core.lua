@@ -216,11 +216,11 @@ local function parseHints(result, ctx)
       map[line] = {}
     end
 
-    table.insert(map[line], {
+    map[line][#map[line]+1] = {
       label = inlayHint.label,
       kind = inlayHint.kind or 1,
       position = inlayHint.position,
-    })
+    }
 
     table.sort(map[line], function(a, b)
       return a.position.character < b.position.character
