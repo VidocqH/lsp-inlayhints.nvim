@@ -1,25 +1,15 @@
 local config = require "lsp-inlayhints.config"
 local opts = config.options.inlay_hints
 
-local get_type_vt = function(current_line, labels, line_hints)
+local get_type_vt = function(current_line, labels)
   if not (opts.type_hints.show and next(labels)) then
     return ""
   end
 
-  local pattern = opts.type_hints.separator .. "%s?$"
-  local t = {}
-  for i, label in ipairs(labels) do
-    if opts.type_hints.remove_colon_start then
-      -- remove ': ' or ':'
-      label = label:match "^:?%s?(.*)$" or label
-    end
-    if opts.type_hints.remove_colon_end then
-      label = label:match "(.*):$" or label
-    end
-    t[i] = label:gsub(pattern, "")
-  end
-
-  return (opts.type_hints.prefix or "") .. table.concat(t, opts.type_hints.separator)
+  -- TODO Replace this block with a generic function
+  -- we can remove .show option (a function may return empty)
+  -- we can remove .separator
+  return table.concat(labels or {}, opts.type_hints.separator)
 end
 
 local get_param_vt = function(labels)
@@ -27,105 +17,69 @@ local get_param_vt = function(labels)
     return ""
   end
 
-  local t = {}
-  for i, label in ipairs(labels) do
-    if opts.parameter_hints.remove_colon_start then
-      -- remove ': ' or ':'
-      label = label:match "^:?%s?(.*)$" or label
-    end
-    if opts.parameter_hints.remove_colon_end then
-      label = label:match "(.*):%s?$" or label
-    end
-
-    t[i] = label
-  end
-
-  return (opts.parameter_hints.prefix or "")
-    .. "("
-    .. table.concat(t, opts.parameter_hints.separator)
-    .. ") "
+  -- TODO Replace this block with a generic function
+  -- we can remove .show option after (a function may return empty)
+  return table.concat(labels or {}, opts.parameter_hints.separator)
 end
 
-local fill_labels = function(line_hints)
-  local param_labels = {}
-  local type_labels = {}
+local fill_labels = function(hint)
+  local tbl = {}
 
-  for _, hint in ipairs(line_hints) do
-    local tbl = hint.kind == 2 and param_labels or type_labels
-
-    -- label may be a string or InlayHintLabelPart[]
-    -- https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#inlayHintLabelPart
-    if type(hint.label) == "table" then
-      for _, label_part in ipairs(hint.label) do
-        tbl[#tbl + 1] = label_part.value
-      end
-    else
-      tbl[#tbl + 1] = hint.label
+  -- label may be a string or InlayHintLabelPart[]
+  -- https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#inlayHintLabelPart
+  if type(hint.label) == "table" then
+    for _, label_part in ipairs(hint.label) do
+      tbl[#tbl + 1] = label_part.value
     end
+  else
+    tbl[#tbl + 1] = hint.label
   end
 
-  return param_labels, type_labels
-end
-
-local current_line = function(bufnr, line)
-  return vim.api.nvim_buf_get_lines(bufnr, line, line + 1, false)[1]
-end
-
-local function get_max_len(bufnr, parsed_data)
-  local max_len = -1
-
-  for line, _ in pairs(parsed_data) do
-    local l = current_line(bufnr, line)
-    if l then
-      max_len = math.max(max_len, l:len())
-    end
-  end
-
-  return max_len
+  return tbl
 end
 
 local render_hints = function(bufnr, parsed, namespace, range)
-  local max_len
-  if config.options.inlay_hints.max_len_align then
-    max_len = get_max_len(bufnr, parsed)
-  end
-
   if config.options.inlay_hints.only_current_line then
     local cursor = vim.api.nvim_win_get_cursor(0)
     local line = cursor[1] - 1
-    parsed = { [line] = parsed[line] }
+    parsed = vim.tbl_filter(function(h)
+      return h.position.line == line
+    end, parsed)
   end
 
-  for line, line_hints in pairs(parsed) do
-    local param_labels, type_labels = fill_labels(line_hints)
+  for _, hint in ipairs(parsed) do
+    local label
 
-    local param_vt = get_param_vt(param_labels)
-    local type_vt = get_type_vt(nil, type_labels)
-
-    local virt_text
-    if type_vt ~= "" then
-      if param_vt ~= "" then
-        virt_text = type_vt .. opts.labels_separator .. param_vt
-      else
-        virt_text = type_vt
-      end
+    local labels = fill_labels(hint)
+    if hint.kind == 2 then
+      -- Parameter label
+      -- TODO accept a generic fn
+      label = get_param_vt(labels)
     else
-      virt_text = param_vt
+      -- Type label or other
+      -- TODO accept a generic fn
+      label = get_type_vt(nil, labels)
     end
 
-    if config.options.inlay_hints.max_len_align then
-      virt_text = string.rep(
-        " ",
-        max_len - current_line(bufnr, line):len() + config.options.inlay_hints.max_len_align_padding
-      ) .. virt_text
-    end
-
-    if virt_text ~= "" then
+    if label ~= "" then
       local line_start, line_end = range.start[1], range._end[1]
+      local line = hint.position.line
+      local col = hint.position.character
       if line >= line_start and line <= line_end then
-        vim.api.nvim_buf_set_extmark(bufnr, namespace, line, 0, {
-          virt_text = { { virt_text, config.options.inlay_hints.highlight } },
-          hl_mode = "combine",
+        local virt_text = {}
+        if hint.paddingLeft then
+          virt_text[#virt_text + 1] = { " " }
+        end
+        virt_text[#virt_text + 1] = { label, config.options.inlay_hints.highlight }
+        if hint.paddingRight then
+          virt_text[#virt_text + 1] = { " " }
+        end
+
+        -- TODO col value outside range
+        vim.api.nvim_buf_set_extmark(bufnr, namespace, line, col, {
+          virt_text = virt_text,
+          virt_text_pos = "inline",
+          -- strict = false,
         })
       end
     end

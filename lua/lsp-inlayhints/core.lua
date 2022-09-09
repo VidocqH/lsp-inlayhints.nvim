@@ -206,28 +206,7 @@ local function parseHints(result, ctx)
     return {}
   end
 
-  result = adapter.adapt(result, ctx)
-
-  local map = {}
-  for _, inlayHint in pairs(result) do
-    local line = tonumber(inlayHint.position.line)
-    if not map[line] then
-      ---@diagnostic disable-next-line: need-check-nil
-      map[line] = {}
-    end
-
-    map[line][#map[line] + 1] = {
-      label = inlayHint.label,
-      kind = inlayHint.kind or 1,
-      position = inlayHint.position,
-    }
-
-    table.sort(map[line], function(a, b)
-      return a.position.character < b.position.character
-    end)
-  end
-
-  return map
+  return adapter.adapt(result, ctx)
 end
 
 local function on_refresh(err, result, ctx, range)
