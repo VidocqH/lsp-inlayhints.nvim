@@ -68,11 +68,11 @@ local render_hints = function(bufnr, parsed, namespace, range)
       if line >= line_start and line <= line_end then
         local virt_text = {}
         if hint.paddingLeft then
-          virt_text[#virt_text + 1] = { " " }
+          virt_text[#virt_text + 1] = { " ", "Normal" }
         end
         virt_text[#virt_text + 1] = { label, config.options.inlay_hints.highlight }
         if hint.paddingRight then
-          virt_text[#virt_text + 1] = { " " }
+          virt_text[#virt_text + 1] = { " ", "Normal" }
         end
 
         -- TODO col value outside range
