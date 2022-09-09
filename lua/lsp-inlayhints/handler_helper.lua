@@ -41,9 +41,9 @@ local get_param_vt = function(labels)
   end
 
   return (opts.parameter_hints.prefix or "")
-      .. "("
-      .. table.concat(t, opts.parameter_hints.separator)
-      .. ") "
+    .. "("
+    .. table.concat(t, opts.parameter_hints.separator)
+    .. ") "
 end
 
 local fill_labels = function(line_hints)
@@ -57,10 +57,10 @@ local fill_labels = function(line_hints)
     -- https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#inlayHintLabelPart
     if type(hint.label) == "table" then
       for _, label_part in ipairs(hint.label) do
-        tbl[#tbl+1] = label_part.value
+        tbl[#tbl + 1] = label_part.value
       end
     else
-      tbl[#tbl+1] = hint.label
+      tbl[#tbl + 1] = hint.label
     end
   end
 
@@ -122,17 +122,12 @@ local render_hints = function(bufnr, parsed, namespace, range)
 
     if virt_text ~= "" then
       local line_start, line_end = range.start[1], range._end[1]
-      -- server may send additional hints
-      if line < line_start or line > line_end then
-        vim.api.nvim_buf_clear_namespace(bufnr, namespace, line, line + 1)
-      end
-
-      pcall(function()
+      if line >= line_start and line <= line_end then
         vim.api.nvim_buf_set_extmark(bufnr, namespace, line, 0, {
           virt_text = { { virt_text, config.options.inlay_hints.highlight } },
           hl_mode = "combine",
         })
-      end)
+      end
     end
   end
 end

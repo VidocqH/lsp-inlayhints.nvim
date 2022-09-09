@@ -92,13 +92,14 @@ function M.on_attach(client, bufnr, force)
     return
   end
 
-  if not (
-  client.server_capabilities.inlayHintProvider
+  if
+    not (
+      client.server_capabilities.inlayHintProvider
       or client.server_capabilities.clangdInlayHintsProvider
       or client.name == "tsserver"
       or client.name == "jdtls"
       or force
-  )
+    )
   then
     return
   end
@@ -215,7 +216,7 @@ local function parseHints(result, ctx)
       map[line] = {}
     end
 
-    map[line][#map[line]+1] = {
+    map[line][#map[line] + 1] = {
       label = inlayHint.label,
       kind = inlayHint.kind or 1,
       position = inlayHint.position,
