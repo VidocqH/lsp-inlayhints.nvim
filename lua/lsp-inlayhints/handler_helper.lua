@@ -41,9 +41,9 @@ local get_param_vt = function(labels)
   end
 
   return (opts.parameter_hints.prefix or "")
-    .. "("
-    .. table.concat(t, opts.parameter_hints.separator)
-    .. ") "
+      .. "("
+      .. table.concat(t, opts.parameter_hints.separator)
+      .. ") "
 end
 
 local fill_labels = function(line_hints)

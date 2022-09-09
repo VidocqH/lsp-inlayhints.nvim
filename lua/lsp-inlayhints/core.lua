@@ -92,14 +92,13 @@ function M.on_attach(client, bufnr, force)
     return
   end
 
-  if
-    not (
-      client.server_capabilities.inlayHintProvider
+  if not (
+  client.server_capabilities.inlayHintProvider
       or client.server_capabilities.clangdInlayHintsProvider
       or client.name == "tsserver"
       or client.name == "jdtls"
       or force
-    )
+  )
   then
     return
   end
