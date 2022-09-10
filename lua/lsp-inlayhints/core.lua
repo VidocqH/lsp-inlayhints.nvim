@@ -59,15 +59,6 @@ local function set_store(client, bufnr)
         return true
       end
 
-      local mode = vim.api.nvim_get_mode()["mode"]
-      if mode ~= "i" then
-        -- faster invalidation for dd/cc/etc
-        -- we ignore ranges because adding/deleting multiple lines results in a poor experience due to things shifting
-        -- around too much
-        -- also, :write might clear the whole buffer
-        vim.api.nvim_buf_clear_namespace(bufnr, ns, first_lnum, first_lnum + 1)
-      end
-
       debounced_fn(bufnr, mode)
     end,
   })
@@ -210,8 +201,19 @@ local function parseHints(result, ctx)
 end
 
 local function on_refresh(err, result, ctx, range)
+  local bufnr = ctx.bufnr
   if err then
-    M.clear(ctx.bufnr, range.start[1] - 1, range._end[1])
+    M.clear(bufnr, range.start[1] - 1, range._end[1])
+
+    if store.b[bufnr].first_request then
+      if config.options.debug_mode then
+        vim.notify_once("[inlay_hints] Retrying first_request...", vim.log.levels.ERROR)
+      end
+
+      store.b[bufnr].first_request = false
+      M.show(bufnr, 5000)
+      store.b[bufnr].first_request = true
+    end
 
     if config.options.debug_mode then
       local msg = err.message or vim.inspect(err)
@@ -220,7 +222,6 @@ local function on_refresh(err, result, ctx, range)
     end
   end
 
-  local bufnr = ctx.bufnr
   local parsed = parseHints(result, ctx)
 
   -- range given is 1-indexed, but clear is 0-indexed (end is exclusive).
