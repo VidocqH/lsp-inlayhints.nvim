@@ -18,6 +18,13 @@ M.servers_config = {
       end
     end,
   },
+  sumneko_lua = {
+    hint_adapter = function(h)
+      if h.kind == 2 then
+        h.paddingLeft = false
+      end
+    end,
+  },
 }
 
 function M.set_old_tsserver()
@@ -81,14 +88,13 @@ M.method = function(bufnr)
 end
 
 -- Adapt responses to the spec interface
-function M.adapt(result, ctx)
-  local client = vim.lsp.get_client_by_id(ctx.client_id)
-  if not client then
+function M.adapt(result, client_name)
+  if type(result) ~= "table" then
     return {}
   end
 
-  result = result_adapter(client.name, result) or {}
-  return utils.tbl_map(hint_adapter(client.name), result)
+  result = result_adapter(client_name, result) or {}
+  return utils.tbl_map(hint_adapter(client_name), result)
 end
 
 return M

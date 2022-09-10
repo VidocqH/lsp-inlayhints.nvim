@@ -24,15 +24,20 @@ end
 local debounced_fn
 local function set_debounced_fn()
   if debounced_fn then
-    return debounced_fn
+    return
   end
 
-  local _, fn = utils.debounce(function(bufnr, mode)
-    local delay = mode ~= "n" and 1250 or nil
-    M.show(bufnr, delay)
+  local _, fn = utils.debounce(function(bufnr, delay, full)
+    M.show(bufnr, delay, full)
   end, 50)
 
   debounced_fn = fn
+end
+
+local function first_request(bufnr, delay)
+  -- give it some time for the server to start;
+  M.show(bufnr, delay or 3000, true)
+  store.b[bufnr].first_request = true
 end
 
 local function set_store(client, bufnr)
@@ -43,9 +48,7 @@ local function set_store(client, bufnr)
   store.b[bufnr].client = { name = client.name, id = client.id }
   store.b[bufnr].attached = true
 
-  -- give it some time for the server to start;
-  M.show(bufnr, 2000)
-  store.b[bufnr].first_request = true
+  first_request(bufnr)
 
   set_debounced_fn()
 
@@ -54,12 +57,14 @@ local function set_store(client, bufnr)
       vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
     end,
     on_lines = function(_, _, _, first_lnum, last_lnum)
-      if not store.b[bufnr].attached then
-        rawset(store.b, bufnr, nil)
-        return true
+      local mode = vim.api.nvim_get_mode()["mode"]
+      if mode ~= "i" then
+        -- faster invalidation for dd/cc/etc
+        -- we ignore ranges because adding/deleting multiple lines results in a poor experience due to things shifting
+        -- around too much
+        -- also, :write might clear the whole buffer
+        vim.api.nvim_buf_clear_namespace(bufnr, ns, first_lnum, first_lnum + 1)
       end
-
-      debounced_fn(bufnr, mode)
     end,
   })
 end
@@ -112,6 +117,22 @@ function M.setup_autocmd(bufnr)
   end
   store.b[bufnr].aucmd = true
 
+  local aucmd = vim.api.nvim_create_autocmd("BufEnter", {
+    group = vim.api.nvim_create_augroup(AUGROUP, { clear = false }),
+    buffer = bufnr,
+    callback = function()
+      first_request(bufnr, 2000)
+    end,
+  })
+
+  local aucmd2 = vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    group = vim.api.nvim_create_augroup(AUGROUP, { clear = false }),
+    buffer = bufnr,
+    callback = function()
+      debounced_fn(bufnr)
+    end,
+  })
+
   if vim.fn.has "nvim-0.8" > 0 then
     local group = vim.api.nvim_create_augroup(AUGROUP .. "Detach", { clear = false })
     -- Needs nightly!
@@ -125,6 +146,9 @@ function M.setup_autocmd(bufnr)
           return
         end
 
+        for _, v in pairs { aucmd, aucmd2 } do
+          pcall(vim.api.nvim_del_autocmd, v)
+        end
         store.b[bufnr].attached = false
       end,
     })
@@ -185,21 +209,6 @@ local function make_params(start_pos, end_pos, bufnr)
   }
 end
 
----@param bufnr number
----@param range table mark-like indexing (1-based lines, 0-based columns)
----Returns 0-indexed params (per LSP spec)
-local function get_params(range, bufnr)
-  return make_params(range.start, range._end, bufnr)
-end
-
-local function parseHints(result, ctx)
-  if type(result) ~= "table" then
-    return {}
-  end
-
-  return adapter.adapt(result, ctx)
-end
-
 local function on_refresh(err, result, ctx, range)
   local bufnr = ctx.bufnr
   if err then
@@ -209,10 +218,7 @@ local function on_refresh(err, result, ctx, range)
       if config.options.debug_mode then
         vim.notify_once("[inlay_hints] Retrying first_request...", vim.log.levels.ERROR)
       end
-
-      store.b[bufnr].first_request = false
-      M.show(bufnr, 5000)
-      store.b[bufnr].first_request = true
+      first_request(bufnr, 5000)
     end
 
     if config.options.debug_mode then
@@ -222,20 +228,26 @@ local function on_refresh(err, result, ctx, range)
     end
   end
 
-  local parsed = parseHints(result, ctx)
+  local client = vim.lsp.get_client_by_id(ctx.client_id)
+  if not client then
+    M.clear(bufnr, range.start[1] - 1, range._end[1])
+    return
+  end
+
+  local hints = adapter.adapt(result, client.name) or {}
 
   -- range given is 1-indexed, but clear is 0-indexed (end is exclusive).
   M.clear(bufnr, range.start[1] - 1, range._end[1])
 
   local helper = require "lsp-inlayhints.handler_helper"
-  helper.render_hints(bufnr, parsed, ns, range)
+  helper.render_hints(bufnr, ns, hints, range, client.name)
 end
 
 function M.toggle()
   if enabled then
     M.clear()
   else
-    M.show()
+    M.show(nil, nil, true)
   end
 
   enabled = not enabled
@@ -255,13 +267,21 @@ function M.clear(bufnr, line_start, line_end)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, line_start or 0, line_end or -1)
 end
 
+---@param bufnr number
+---@param range table mark-like indexing (1-based lines, 0-based columns)
+---Returns 0-indexed params (per LSP spec)
+local function get_params(range, bufnr)
+  return make_params(range.start, range._end, bufnr)
+end
+
 local scheduler = require("lsp-inlayhints.utils").scheduler:new()
 local cts = utils.cancellationTokenSource:new()
 
 -- Sends the request to get the inlay hints and show them
 ---@param bufnr number | nil
 ---@param delay integer | nil additional delay in ms.
-function M.show(bufnr, delay)
+---@param full boolean | nil whether to request hints for the entire buffer, defaults to false
+function M.show(bufnr, delay, full)
   -- TODO
   -- a change somewhere in the buffer might cause other hints to change, we should
   -- get range for all visible window/bufnr.
@@ -282,15 +302,15 @@ function M.show(bufnr, delay)
 
   local info = require("lsp-inlayhints.FeatureDebounce").for_("InlayHints", { min = 25 })
 
-  delay = math.max(info.get(bufnr), delay or 0)
+  local is_insert = vim.api.nvim_get_mode()["mode"] == "i"
+  local insert_delay = is_insert and 1250 or 0
+
+  -- we have previously debounced for 50ms; relax a bit
+  delay = math.max(info.get(bufnr), delay or 0, insert_delay) - 25
 
   local token = cts.token
   scheduler:schedule(function()
-    if token.isCancellationRequested then
-      return
-    end
-
-    if not vim.api.nvim_buf_is_loaded(bufnr) then
+    if token.isCancellationRequested or not vim.api.nvim_buf_is_loaded(bufnr) then
       return
     end
 
@@ -299,7 +319,11 @@ function M.show(bufnr, delay)
       return
     end
 
-    local range = get_hint_ranges(client.offset_encoding, store.b[bufnr].first_request)
+    -- TODO
+    -- a change somewhere in the buffer might cause other hints to change, we should
+    -- get range for all visible window/bufnr.
+    -- may return multiple ranges, in which case we have multiple requests
+    local range = get_hint_ranges(client.offset_encoding, full)
     local params = get_params(range, bufnr)
     if not params then
       return
@@ -310,12 +334,13 @@ function M.show(bufnr, delay)
 
     local t1 = uv.now()
     local success, id = client.request(adapter.method(bufnr), params, function(err, result, ctx)
+      local t
       if store.b[bufnr].first_request then
         store.b[bufnr].first_request = false
         info.update(bufnr, 200)
       else
         uv.update_time()
-        info.update(bufnr, (uv.now() - t1))
+        t = info.update(bufnr, (uv.now() - t1))
       end
 
       if token.isCancellationRequested then
@@ -323,10 +348,9 @@ function M.show(bufnr, delay)
       end
 
       if config.options.debug_mode then
-        local n = info.get(bufnr)
-        if n > 150 then
+        if t and t > 150 then
           vim.notify(
-            string.format("[LSP Inlayhints] Delay %d for buffer %d", n, bufnr),
+            string.format("[LSP Inlayhints] Delay %d for buffer %d", t, bufnr),
             vim.log.levels.TRACE
           )
         end
@@ -339,6 +363,10 @@ function M.show(bufnr, delay)
       table.insert(store.b[bufnr].requests[client.id], id)
     end
   end, delay)
+end
+
+M.extend_capabilities = function(capabilities)
+  -- https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspace_inlayHint_refresh
 end
 
 return M
