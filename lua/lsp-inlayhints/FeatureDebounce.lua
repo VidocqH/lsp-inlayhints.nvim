@@ -91,7 +91,7 @@ M.for_ = function(name, _config)
       result.update(info.default())
     end
 
-    return result.value
+    return result.value()
   end
 
   local info = _data[name]
