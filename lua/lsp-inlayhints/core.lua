@@ -56,16 +56,6 @@ local function set_store(client, bufnr)
     on_detach = function()
       vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
     end,
-    on_lines = function(_, _, _, first_lnum, last_lnum)
-      local mode = vim.api.nvim_get_mode()["mode"]
-      if mode ~= "i" then
-        -- faster invalidation for dd/cc/etc
-        -- we ignore ranges because adding/deleting multiple lines results in a poor experience due to things shifting
-        -- around too much
-        -- also, :write might clear the whole buffer
-        vim.api.nvim_buf_clear_namespace(bufnr, ns, first_lnum, first_lnum + 1)
-      end
-    end,
   })
 end
 
