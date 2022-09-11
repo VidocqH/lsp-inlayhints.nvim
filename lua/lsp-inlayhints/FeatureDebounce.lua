@@ -49,7 +49,7 @@ function FeatureDebounce:new(name, default, min, max)
     for _, avg in pairs(_cache) do
       result.update(avg:value())
     end
-    return result.value
+    return result.value()
   end
 
   function t.default()
