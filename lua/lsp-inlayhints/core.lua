@@ -35,6 +35,7 @@ local function set_debounced_fn()
 end
 
 local function first_request(bufnr, delay)
+  store.b[bufnr].first_request = false
   -- give it some time for the server to start;
   M.show(bufnr, delay or 3000, true)
   store.b[bufnr].first_request = true
