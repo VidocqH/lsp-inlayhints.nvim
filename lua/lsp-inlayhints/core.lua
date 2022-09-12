@@ -37,7 +37,7 @@ end
 local function first_request(bufnr, delay)
   store.b[bufnr].first_request = false
   -- give it some time for the server to start;
-  M.show(bufnr, delay or 3000, true)
+  M.show(bufnr, delay or 2000, true)
   store.b[bufnr].first_request = true
 end
 
@@ -112,7 +112,7 @@ function M.setup_autocmd(bufnr)
     group = vim.api.nvim_create_augroup(AUGROUP, { clear = false }),
     buffer = bufnr,
     callback = function()
-      first_request(bufnr, 2000)
+      first_request(bufnr)
     end,
   })
 
