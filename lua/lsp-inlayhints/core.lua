@@ -57,6 +57,12 @@ local function set_store(client, bufnr)
     on_detach = function()
       vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
     end,
+    on_lines = function(_, _, _, first_lnum, last_lnum)
+      local mode = vim.api.nvim_get_mode()["mode"]
+      if mode == "i" then
+        vim.api.nvim_buf_clear_namespace(bufnr, ns, first_lnum, last_lnum)
+      end
+    end,
   })
 end
 
