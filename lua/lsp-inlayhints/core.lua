@@ -122,7 +122,7 @@ function M.setup_autocmd(bufnr)
     end,
   })
 
-  local aucmd2 = vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+  local aucmd2 = vim.api.nvim_create_autocmd({ "TextChanged", "InsertLeave" }, {
     group = vim.api.nvim_create_augroup(AUGROUP, { clear = false }),
     buffer = bufnr,
     callback = function()
