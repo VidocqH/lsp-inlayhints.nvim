@@ -77,6 +77,8 @@ local default_config = {
       if client_name == "sumneko_lua" then
         if hint.kind == 2 then
           hint.paddingLeft = false
+        else
+          hint.paddingRight = false
         end
       end
 
@@ -94,6 +96,7 @@ local default_config = {
   enabled_at_startup = true,
   debug_mode = false,
 }
+require("lsp-inlayhints").setup({ default_config })
 ```
 
 </details>

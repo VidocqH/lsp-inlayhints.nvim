@@ -46,6 +46,8 @@ local default_config = {
       if client_name == "sumneko_lua" then
         if hint.kind == 2 then
           hint.paddingLeft = false
+        else
+          hint.paddingRight = false
         end
       end
 
