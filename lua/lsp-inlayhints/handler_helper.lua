@@ -38,11 +38,11 @@ M.render_hints = function(bufnr, namespace, hints, range, client_name)
       if line >= _start and line <= _end then
         local virt_text = opts.virt_text_formatter(label, hint, opts, client_name)
         if virt_text then
-          -- TODO col value outside range
           vim.api.nvim_buf_set_extmark(bufnr, namespace, line, col, {
             virt_text = virt_text,
             virt_text_pos = "inline",
-            -- strict = false,
+            -- TODO col value outside range
+            strict = false,
           })
         end
       end

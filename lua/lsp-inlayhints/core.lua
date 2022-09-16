@@ -125,7 +125,12 @@ function M.setup_autocmd(bufnr)
   local aucmd2 = vim.api.nvim_create_autocmd({ "TextChanged", "InsertLeave" }, {
     group = vim.api.nvim_create_augroup(AUGROUP, { clear = false }),
     buffer = bufnr,
-    callback = function()
+    callback = function(args)
+      if args.event and args.event == "InsertLeave" then
+        debounced_fn(bufnr, 1500)
+        return
+      end
+
       debounced_fn(bufnr)
     end,
   })
@@ -300,7 +305,7 @@ function M.show(bufnr, delay, full)
   local info = require("lsp-inlayhints.FeatureDebounce").for_("InlayHints", { min = 25 })
 
   local is_insert = vim.api.nvim_get_mode()["mode"] == "i"
-  local insert_delay = is_insert and 1250 or 0
+  local insert_delay = is_insert and 1500 or 0
 
   -- we have previously debounced for 50ms; relax a bit
   delay = math.max(info.get(bufnr), delay or 0, insert_delay) - 25
