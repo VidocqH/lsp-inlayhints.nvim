@@ -8,10 +8,10 @@ local fill_labels = function(hint)
   -- https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#inlayHintLabelPart
   if type(hint.label) == "table" then
     for _, label_part in ipairs(hint.label) do
-      tbl[#tbl + 1] = label_part.value
+      tbl[#tbl+1] = label_part.value
     end
   else
-    tbl[#tbl + 1] = hint.label
+    tbl[#tbl+1] = hint.label
   end
 
   return tbl
@@ -38,12 +38,14 @@ M.render_hints = function(bufnr, namespace, hints, range, client_name)
       if line >= _start and line <= _end then
         local virt_text = opts.virt_text_formatter(label, hint, opts, client_name)
         if virt_text then
-          vim.api.nvim_buf_set_extmark(bufnr, namespace, line, col, {
-            virt_text = virt_text,
-            virt_text_pos = "inline",
-            -- TODO col value outside range
-            strict = false,
-          })
+          -- TODO col value outside range
+          pcall(function()
+            vim.api.nvim_buf_set_extmark(bufnr, namespace, line, col, {
+              virt_text = virt_text,
+              virt_text_pos = "inline",
+              strict = false,
+            })
+          end)
         end
       end
     end
